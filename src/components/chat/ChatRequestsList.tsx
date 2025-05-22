@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { useChatRequests, ChatRequest } from '@/hooks/useChatRequests';
+import { useChatRequests } from '@/hooks/useChatRequests';
+import { ChatRequest } from '@/types/chatRequest';
 import ChatRequestItem from './ChatRequestItem';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnimatePresence } from 'framer-motion';
