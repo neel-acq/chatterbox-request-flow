@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import UserSearch from '../users/UserSearch';
+import UsersList from '../users/UsersList';
 import ChatRequestsList from '../chat/ChatRequestsList';
 import ChatsList from '../chat/ChatsList';
 
@@ -32,6 +33,7 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedChatId, onSelectChat }) => {
             <TabsList className="w-full">
               <TabsTrigger value="chats" className="flex-1">Chats</TabsTrigger>
               <TabsTrigger value="requests" className="flex-1">Requests</TabsTrigger>
+              <TabsTrigger value="users" className="flex-1">Users</TabsTrigger>
             </TabsList>
           </div>
           
@@ -44,6 +46,10 @@ const Sidebar: React.FC<SidebarProps> = ({ selectedChatId, onSelectChat }) => {
           
           <TabsContent value="requests" className="px-4">
             <ChatRequestsList />
+          </TabsContent>
+
+          <TabsContent value="users" className="px-4">
+            <UsersList />
           </TabsContent>
         </Tabs>
       </div>

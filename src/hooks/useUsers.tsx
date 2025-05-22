@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
 import { firestore } from '../lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 
 export type UserProfile = {
   uid: string;
@@ -35,7 +35,10 @@ export const useUserByEmail = (email: string) => {
           setError('No user found with that email');
         } else {
           const userData = querySnapshot.docs[0].data() as UserProfile;
-          setUser(userData);
+          setUser({
+            ...userData,
+            uid: querySnapshot.docs[0].id  // Make sure uid is properly set
+          });
         }
       } catch (err) {
         console.error('Error fetching user by email:', err);
@@ -90,4 +93,55 @@ export const useUserProfile = (userId: string | null) => {
   }, [userId]);
 
   return { profile, loading, error };
+};
+
+// Add a new hook to get all users
+export const useAllUsers = () => {
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const { currentUser } = useAuth();
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (!currentUser) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      try {
+        const usersRef = collection(firestore, 'users');
+        const q = query(usersRef, orderBy('displayName'));
+        const querySnapshot = await getDocs(q);
+        
+        const usersList: UserProfile[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          const userData = doc.data() as UserProfile;
+          // Don't include the current user in the list
+          if (doc.id !== currentUser.uid) {
+            usersList.push({
+              ...userData,
+              uid: doc.id
+            });
+          }
+        });
+        
+        setUsers(usersList);
+      } catch (err) {
+        console.error('Error fetching all users:', err);
+        setError('Failed to fetch users');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUsers();
+  }, [currentUser]);
+
+  return { users, loading, error };
 };
