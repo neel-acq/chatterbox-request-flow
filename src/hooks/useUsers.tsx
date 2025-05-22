@@ -95,7 +95,7 @@ export const useUserProfile = (userId: string | null) => {
   return { profile, loading, error };
 };
 
-// Add a new hook to get all users
+// Update the useAllUsers hook to properly fetch all users
 export const useAllUsers = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -114,10 +114,13 @@ export const useAllUsers = () => {
       setError(null);
 
       try {
+        console.log("Fetching all users...");
         const usersRef = collection(firestore, 'users');
-        const q = query(usersRef, orderBy('displayName'));
+        // Remove orderBy which might be causing issues if there's no index
+        const q = query(usersRef);
         const querySnapshot = await getDocs(q);
         
+        console.log(`Found ${querySnapshot.size} users in database`);
         const usersList: UserProfile[] = [];
         
         querySnapshot.forEach((doc) => {
@@ -128,10 +131,12 @@ export const useAllUsers = () => {
               ...userData,
               uid: doc.id
             });
+            console.log(`Added user: ${userData.displayName || 'unknown'} (${doc.id})`);
           }
         });
         
         setUsers(usersList);
+        console.log(`Set ${usersList.length} users in state`);
       } catch (err) {
         console.error('Error fetching all users:', err);
         setError('Failed to fetch users');

@@ -10,13 +10,14 @@ import { Loader2 } from 'lucide-react';
 
 const UsersList: React.FC = () => {
   const { users, loading, error } = useAllUsers();
-  const { sendChatRequest } = useChatRequests();
+  const { sendChatRequest, isSending } = useChatRequests();
 
   const handleSendRequest = (userId: string) => {
     sendChatRequest(userId);
   };
 
   const getInitials = (name: string) => {
+    if (!name) return '??';
     return name
       .split(' ')
       .map(part => part[0])
@@ -41,7 +42,7 @@ const UsersList: React.FC = () => {
     );
   }
 
-  if (!users.length) {
+  if (!users || users.length === 0) {
     return (
       <div className="text-center py-4 text-muted-foreground">
         No other users found
@@ -49,9 +50,11 @@ const UsersList: React.FC = () => {
     );
   }
 
+  console.log("Rendering users list with", users.length, "users");
+
   return (
     <div className="space-y-3 mt-4">
-      <h3 className="text-sm font-medium">All Users</h3>
+      <h3 className="text-sm font-medium">All Users ({users.length})</h3>
       {users.map((user) => (
         <motion.div
           key={user.uid}
@@ -64,15 +67,19 @@ const UsersList: React.FC = () => {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
-                    <AvatarImage src={user.photoURL || undefined} alt={user.displayName} />
-                    <AvatarFallback>{getInitials(user.displayName)}</AvatarFallback>
+                    <AvatarImage src={user.photoURL || undefined} alt={user.displayName || 'User'} />
+                    <AvatarFallback>{getInitials(user.displayName || 'User')}</AvatarFallback>
                   </Avatar>
                   <div>
-                    <p className="font-medium">{user.displayName}</p>
-                    <p className="text-sm text-muted-foreground">{user.email}</p>
+                    <p className="font-medium">{user.displayName || 'Anonymous User'}</p>
+                    <p className="text-sm text-muted-foreground">{user.email || 'No email'}</p>
                   </div>
                 </div>
-                <Button onClick={() => handleSendRequest(user.uid)}>
+                <Button 
+                  onClick={() => handleSendRequest(user.uid)}
+                  disabled={isSending}
+                >
+                  {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
                   Chat
                 </Button>
               </div>
