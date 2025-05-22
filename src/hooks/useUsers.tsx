@@ -1,5 +1,6 @@
+
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { firestore } from '../lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -34,10 +35,14 @@ export const useUserByEmail = (email: string) => {
           setUser(null);
           setError('No user found with that email');
         } else {
-          const userData = querySnapshot.docs[0].data() as UserProfile;
+          const userData = querySnapshot.docs[0].data();
           setUser({
             ...userData,
-            uid: querySnapshot.docs[0].id  // Make sure uid is properly set
+            uid: querySnapshot.docs[0].id,
+            email: userData.email || '',
+            displayName: userData.displayName || '',
+            photoURL: userData.photoURL || null,
+            createdAt: userData.createdAt || null
           });
         }
       } catch (err) {
@@ -75,7 +80,14 @@ export const useUserProfile = (userId: string | null) => {
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
-          setProfile(userDoc.data() as UserProfile);
+          const userData = userDoc.data();
+          setProfile({
+            uid: userId,
+            email: userData.email || '',
+            displayName: userData.displayName || '',
+            photoURL: userData.photoURL || null,
+            createdAt: userData.createdAt || null
+          });
         } else {
           setProfile(null);
           setError('User profile not found');
@@ -124,12 +136,15 @@ export const useAllUsers = () => {
         const usersList: UserProfile[] = [];
         
         querySnapshot.forEach((doc) => {
-          const userData = doc.data() as UserProfile;
+          const userData = doc.data();
           // Don't include the current user in the list
           if (doc.id !== currentUser.uid) {
             usersList.push({
-              ...userData,
-              uid: doc.id
+              uid: doc.id,
+              email: userData.email || '',
+              displayName: userData.displayName || '',
+              photoURL: userData.photoURL || null,
+              createdAt: userData.createdAt || null
             });
             console.log(`Added user: ${userData.displayName || 'unknown'} (${doc.id})`);
           }

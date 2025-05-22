@@ -13,7 +13,13 @@ const UsersList: React.FC = () => {
   const { sendChatRequest, isSending } = useChatRequests();
 
   const handleSendRequest = (userId: string) => {
-    sendChatRequest(userId);
+    if (userId) {
+      try {
+        sendChatRequest(userId);
+      } catch (error) {
+        console.error("Error sending chat request:", error);
+      }
+    }
   };
 
   const getInitials = (name: string) => {

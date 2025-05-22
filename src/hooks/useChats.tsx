@@ -47,66 +47,92 @@ export const useChats = () => {
       orderBy('lastMessageAt', 'desc')
     );
 
-    const unsubscribe = onSnapshot(q, async (snapshot) => {
-      const chatsList: Chat[] = [];
-      
-      for (const chatDoc of snapshot.docs) {
-        const chatData = chatDoc.data() as Chat;
-        
-        // Find the other user in the chat
-        const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
-        let otherUserData = null;
-        
-        if (otherUserId) {
-          const otherUserRef = doc(firestore, 'users', otherUserId);
-          const otherUserSnap = await getDoc(otherUserRef);
+    try {
+      const unsubscribe = onSnapshot(q, async (snapshot) => {
+        try {
+          const chatsList: Chat[] = [];
           
-          if (otherUserSnap.exists()) {
-            // Fixed: correctly type the document data
-            const userData = otherUserSnap.data() as DocumentData;
-            otherUserData = {
-              uid: otherUserId,
-              displayName: userData.displayName || null,
-              email: userData.email || null,
-              photoURL: userData.photoURL || null
+          for (const chatDoc of snapshot.docs) {
+            const chatData = chatDoc.data() as Chat;
+            
+            // Find the other user in the chat
+            const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+            let otherUserData = null;
+            
+            if (otherUserId) {
+              try {
+                const otherUserRef = doc(firestore, 'users', otherUserId);
+                const otherUserSnap = await getDoc(otherUserRef);
+                
+                if (otherUserSnap.exists()) {
+                  const userData = otherUserSnap.data() as DocumentData;
+                  otherUserData = {
+                    uid: otherUserId,
+                    displayName: userData.displayName || null,
+                    email: userData.email || null,
+                    photoURL: userData.photoURL || null
+                  };
+                }
+              } catch (error) {
+                console.error(`Error fetching other user data: ${otherUserId}`, error);
+              }
+            }
+            
+            // Create a new chat object with safe serializable properties
+            const safeChat: Chat = {
+              id: chatDoc.id,
+              participants: [...chatData.participants],
+              lastMessage: chatData.lastMessage,
+              lastMessageAt: chatData.lastMessageAt,
+              createdAt: chatData.createdAt,
+              otherUser: otherUserData
             };
+            
+            chatsList.push(safeChat);
           }
+          
+          setChats(chatsList);
+          setLoading(false);
+        } catch (error) {
+          console.error("Error processing chat data:", error);
+          setLoading(false);
         }
-        
-        chatsList.push({
-          id: chatDoc.id,
-          ...chatData,
-          otherUser: otherUserData
-        });
-      }
+      }, (error) => {
+        console.error("Error in chat snapshot listener:", error);
+        setLoading(false);
+      });
       
-      setChats(chatsList);
+      return () => unsubscribe();
+    } catch (error) {
+      console.error("Error setting up chat listener:", error);
       setLoading(false);
-    });
-
-    return () => unsubscribe();
+    }
   }, [currentUser]);
 
   const sendMessage = async (chatId: string, text: string) => {
     if (!currentUser) return;
     
-    const messagesRef = collection(firestore, `chats/${chatId}/messages`);
-    const chatRef = doc(firestore, 'chats', chatId);
-    
-    // Add new message
-    await addDoc(messagesRef, {
-      text,
-      sender: currentUser.uid,
-      createdAt: Timestamp.now()
-    });
-    
-    // Update last message in chat - Fixed: use updateDoc instead of document.update
-    const chatDoc = await getDoc(chatRef);
-    if (chatDoc.exists()) {
-      await updateDoc(chatRef, {
-        lastMessage: text,
-        lastMessageAt: Timestamp.now()
+    try {
+      const messagesRef = collection(firestore, `chats/${chatId}/messages`);
+      const chatRef = doc(firestore, 'chats', chatId);
+      
+      // Add new message
+      await addDoc(messagesRef, {
+        text,
+        sender: currentUser.uid,
+        createdAt: Timestamp.now()
       });
+      
+      // Update last message in chat
+      const chatDoc = await getDoc(chatRef);
+      if (chatDoc.exists()) {
+        await updateDoc(chatRef, {
+          lastMessage: text,
+          lastMessageAt: Timestamp.now()
+        });
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
     }
   };
 
@@ -128,83 +154,120 @@ export const useChat = (chatId: string | null) => {
       return;
     }
 
-    // Get chat data
-    const chatRef = doc(firestore, 'chats', chatId);
-    const unsubChat = onSnapshot(chatRef, async (chatDoc) => {
-      if (!chatDoc.exists()) {
-        setChat(null);
-        setLoading(false);
-        return;
-      }
+    let unsubChat: (() => void) | undefined;
+    let unsubMessages: (() => void) | undefined;
 
-      const chatData = chatDoc.data() as Omit<Chat, 'id'>;
-      const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
-      let otherUserData = null;
-      
-      if (otherUserId) {
-        const otherUserRef = doc(firestore, 'users', otherUserId);
-        const otherUserSnap = await getDoc(otherUserRef);
-        
-        if (otherUserSnap.exists()) {
-          const userData = otherUserSnap.data() as DocumentData;
-          otherUserData = {
-            uid: otherUserId,
-            displayName: userData.displayName || null,
-            email: userData.email || null,
-            photoURL: userData.photoURL || null
-          };
+    try {
+      // Get chat data
+      const chatRef = doc(firestore, 'chats', chatId);
+      unsubChat = onSnapshot(chatRef, async (chatDoc) => {
+        try {
+          if (!chatDoc.exists()) {
+            setChat(null);
+            setLoading(false);
+            return;
+          }
+
+          const chatData = chatDoc.data() as Omit<Chat, 'id'>;
+          const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+          let otherUserData = null;
+          
+          if (otherUserId) {
+            try {
+              const otherUserRef = doc(firestore, 'users', otherUserId);
+              const otherUserSnap = await getDoc(otherUserRef);
+              
+              if (otherUserSnap.exists()) {
+                const userData = otherUserSnap.data() as DocumentData;
+                otherUserData = {
+                  uid: otherUserId,
+                  displayName: userData.displayName || null,
+                  email: userData.email || null,
+                  photoURL: userData.photoURL || null
+                };
+              }
+            } catch (error) {
+              console.error("Error fetching other user data:", error);
+            }
+          }
+          
+          // Create a serializable chat object
+          setChat({
+            id: chatDoc.id,
+            participants: [...chatData.participants],
+            lastMessage: chatData.lastMessage,
+            lastMessageAt: chatData.lastMessageAt,
+            createdAt: chatData.createdAt,
+            otherUser: otherUserData
+          });
+        } catch (error) {
+          console.error("Error processing chat document:", error);
         }
-      }
-      
-      setChat({
-        id: chatDoc.id,
-        ...chatData,
-        otherUser: otherUserData
+      }, (error) => {
+        console.error("Error in chat snapshot listener:", error);
       });
-    });
 
-    // Get messages
-    const messagesRef = collection(firestore, `chats/${chatId}/messages`);
-    const messagesQuery = query(messagesRef, orderBy('createdAt', 'asc'));
-    
-    const unsubMessages = onSnapshot(messagesQuery, (snapshot) => {
-      const messagesList: Message[] = [];
+      // Get messages
+      const messagesRef = collection(firestore, `chats/${chatId}/messages`);
+      const messagesQuery = query(messagesRef, orderBy('createdAt', 'asc'));
       
-      snapshot.forEach((doc) => {
-        messagesList.push({
-          id: doc.id,
-          ...doc.data() as Omit<Message, 'id'>
-        });
+      unsubMessages = onSnapshot(messagesQuery, (snapshot) => {
+        try {
+          const messagesList: Message[] = [];
+          
+          snapshot.forEach((doc) => {
+            const msgData = doc.data();
+            messagesList.push({
+              id: doc.id,
+              text: msgData.text || '',
+              sender: msgData.sender || '',
+              createdAt: msgData.createdAt
+            });
+          });
+          
+          setMessages(messagesList);
+          setLoading(false);
+        } catch (error) {
+          console.error("Error processing messages:", error);
+          setLoading(false);
+        }
+      }, (error) => {
+        console.error("Error in messages snapshot listener:", error);
+        setLoading(false);
       });
-      
-      setMessages(messagesList);
+    } catch (error) {
+      console.error("Error setting up chat listeners:", error);
       setLoading(false);
-    });
+    }
 
     return () => {
-      unsubChat();
-      unsubMessages();
+      if (unsubChat) unsubChat();
+      if (unsubMessages) unsubMessages();
     };
   }, [chatId, currentUser]);
 
   const sendMessage = async (text: string) => {
     if (!currentUser || !chatId) return;
     
-    const messagesRef = collection(firestore, `chats/${chatId}/messages`);
-    const chatRef = doc(firestore, 'chats', chatId);
-    
-    // Add new message
-    await addDoc(messagesRef, {
-      text,
-      sender: currentUser.uid,
-      createdAt: Timestamp.now()
-    });
-    
-    // Update last message in chat
-    await updateDoc(chatRef, {
-      lastMessage: text,
-      lastMessageAt: Timestamp.now()
-    });
+    try {
+      const messagesRef = collection(firestore, `chats/${chatId}/messages`);
+      const chatRef = doc(firestore, 'chats', chatId);
+      
+      // Add new message
+      await addDoc(messagesRef, {
+        text,
+        sender: currentUser.uid,
+        createdAt: Timestamp.now()
+      });
+      
+      // Update last message in chat
+      await updateDoc(chatRef, {
+        lastMessage: text,
+        lastMessageAt: Timestamp.now()
+      });
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
   };
 
   return { chat, messages, loading, sendMessage };
