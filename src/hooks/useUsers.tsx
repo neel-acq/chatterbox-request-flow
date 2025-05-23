@@ -36,14 +36,14 @@ export const useUserByEmail = (email: string) => {
           setError('No user found with that email');
         } else {
           const userData = querySnapshot.docs[0].data();
-          setUser({
-            ...userData,
+          const sanitizedUser: UserProfile = {
             uid: querySnapshot.docs[0].id,
             email: userData.email || '',
             displayName: userData.displayName || '',
             photoURL: userData.photoURL || null,
             createdAt: userData.createdAt || null
-          });
+          };
+          setUser(sanitizedUser);
         }
       } catch (err) {
         console.error('Error fetching user by email:', err);
@@ -81,13 +81,14 @@ export const useUserProfile = (userId: string | null) => {
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
-          setProfile({
+          const sanitizedProfile: UserProfile = {
             uid: userId,
             email: userData.email || '',
             displayName: userData.displayName || '',
             photoURL: userData.photoURL || null,
             createdAt: userData.createdAt || null
-          });
+          };
+          setProfile(sanitizedProfile);
         } else {
           setProfile(null);
           setError('User profile not found');
@@ -107,7 +108,7 @@ export const useUserProfile = (userId: string | null) => {
   return { profile, loading, error };
 };
 
-// Update the useAllUsers hook to properly fetch all users
+// Update the useAllUsers hook to properly fetch all users and ensure cloneable data
 export const useAllUsers = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -128,7 +129,6 @@ export const useAllUsers = () => {
       try {
         console.log("Fetching all users...");
         const usersRef = collection(firestore, 'users');
-        // Remove orderBy which might be causing issues if there's no index
         const q = query(usersRef);
         const querySnapshot = await getDocs(q);
         
@@ -139,19 +139,21 @@ export const useAllUsers = () => {
           const userData = doc.data();
           // Don't include the current user in the list
           if (doc.id !== currentUser.uid) {
-            usersList.push({
+            // Create a clean, serializable object
+            const sanitizedUser: UserProfile = {
               uid: doc.id,
               email: userData.email || '',
               displayName: userData.displayName || '',
               photoURL: userData.photoURL || null,
               createdAt: userData.createdAt || null
-            });
+            };
+            usersList.push(sanitizedUser);
             console.log(`Added user: ${userData.displayName || 'unknown'} (${doc.id})`);
           }
         });
         
+        console.log(`Processed ${usersList.length} users, setting in state`);
         setUsers(usersList);
-        console.log(`Set ${usersList.length} users in state`);
       } catch (err) {
         console.error('Error fetching all users:', err);
         setError('Failed to fetch users');

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAllUsers } from '@/hooks/useUsers';
 import { useChatRequests } from '@/hooks/useChatRequests';
 import { Card, CardContent } from '@/components/ui/card';
@@ -11,6 +11,14 @@ import { Loader2 } from 'lucide-react';
 const UsersList: React.FC = () => {
   const { users, loading, error } = useAllUsers();
   const { sendChatRequest, isSending } = useChatRequests();
+
+  useEffect(() => {
+    console.log("UsersList component rendered with:", {
+      usersCount: users?.length || 0,
+      loading,
+      hasError: !!error
+    });
+  }, [users, loading, error]);
 
   const handleSendRequest = (userId: string) => {
     if (userId) {

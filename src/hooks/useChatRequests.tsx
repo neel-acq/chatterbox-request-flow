@@ -26,6 +26,9 @@ export const useChatRequests = () => {
       return;
     }
 
+    let unsubscribeIncoming: (() => void) | undefined;
+    let unsubscribeSent: (() => void) | undefined;
+
     try {
       // Get incoming requests
       const incomingRef = collection(firestore, 'chatRequests');
@@ -43,24 +46,26 @@ export const useChatRequests = () => {
         orderBy('createdAt', 'desc')
       );
 
-      const unsubscribeIncoming = onSnapshot(incomingQ, async (snapshot) => {
+      unsubscribeIncoming = onSnapshot(incomingQ, async (snapshot) => {
         try {
           const requests: ChatRequest[] = [];
           
           for (const doc of snapshot.docs) {
             const requestData = doc.data();
-            requests.push({
+            // Clone and sanitize data for serialization
+            const sanitizedData: ChatRequest = {
               id: doc.id,
-              from: requestData.from,
-              to: requestData.to,
-              status: requestData.status,
+              from: requestData.from || '',
+              to: requestData.to || '',
+              status: (requestData.status as 'pending' | 'accepted' | 'declined') || 'pending',
               createdAt: requestData.createdAt,
               fromUser: requestData.fromUser ? {
-                displayName: requestData.fromUser.displayName,
-                photoURL: requestData.fromUser.photoURL
+                displayName: requestData.fromUser.displayName || '',
+                photoURL: requestData.fromUser.photoURL || null
                 // Remove the uid property as it's not in the type definition
               } : null
-            });
+            };
+            requests.push(sanitizedData);
           }
           
           setIncomingRequests(requests);
@@ -75,24 +80,26 @@ export const useChatRequests = () => {
         setLoading(false);
       });
 
-      const unsubscribeSent = onSnapshot(sentQ, async (snapshot) => {
+      unsubscribeSent = onSnapshot(sentQ, async (snapshot) => {
         try {
           const requests: ChatRequest[] = [];
           
           for (const doc of snapshot.docs) {
             const requestData = doc.data();
-            requests.push({
+            // Clone and sanitize data for serialization
+            const sanitizedData: ChatRequest = {
               id: doc.id,
-              from: requestData.from,
-              to: requestData.to,
-              status: requestData.status,
+              from: requestData.from || '',
+              to: requestData.to || '',
+              status: (requestData.status as 'pending' | 'accepted' | 'declined') || 'pending',
               createdAt: requestData.createdAt,
               toUser: requestData.toUser ? {
-                displayName: requestData.toUser.displayName,
-                photoURL: requestData.toUser.photoURL
+                displayName: requestData.toUser.displayName || '',
+                photoURL: requestData.toUser.photoURL || null
                 // Remove the uid property as it's not in the type definition
               } : null
-            });
+            };
+            requests.push(sanitizedData);
           }
           
           setSentRequests(requests);
@@ -125,12 +132,13 @@ export const useChatRequests = () => {
       checkIfEmpty();
 
       return () => {
-        unsubscribeIncoming();
-        unsubscribeSent();
+        if (unsubscribeIncoming) unsubscribeIncoming();
+        if (unsubscribeSent) unsubscribeSent();
       };
     } catch (error) {
       console.error("Error setting up request listeners:", error);
       setLoading(false);
+      return () => {};
     }
   }, [currentUser]);
 
