@@ -10,9 +10,9 @@ export type ChatRequest = {
   fromUser?: {
     displayName: string;
     photoURL: string | null;
-  };
+  } | null;
   toUser?: {
     displayName: string;
     photoURL: string | null;
-  };
+  } | null;
 };

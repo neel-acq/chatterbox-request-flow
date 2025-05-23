@@ -56,10 +56,9 @@ export const useChatRequests = () => {
               status: requestData.status,
               createdAt: requestData.createdAt,
               fromUser: requestData.fromUser ? {
-                uid: requestData.fromUser.uid,
                 displayName: requestData.fromUser.displayName,
-                email: requestData.fromUser.email,
                 photoURL: requestData.fromUser.photoURL
+                // Remove the uid property as it's not in the type definition
               } : null
             });
           }
@@ -89,10 +88,9 @@ export const useChatRequests = () => {
               status: requestData.status,
               createdAt: requestData.createdAt,
               toUser: requestData.toUser ? {
-                uid: requestData.toUser.uid,
                 displayName: requestData.toUser.displayName,
-                email: requestData.toUser.email,
                 photoURL: requestData.toUser.photoURL
+                // Remove the uid property as it's not in the type definition
               } : null
             });
           }
