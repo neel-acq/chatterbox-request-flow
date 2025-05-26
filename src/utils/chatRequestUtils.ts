@@ -3,7 +3,6 @@ import {
   collection, 
   query, 
   where, 
-  orderBy, 
   getDocs, 
   addDoc, 
   updateDoc, 
@@ -30,16 +29,15 @@ export const fetchUserDetailsForRequests = async (requests: ChatRequest[], field
       
       if (!userDoc.empty) {
         const userData = userDoc.docs[0].data();
+        const sanitizedUserData = {
+          displayName: String(userData.displayName || 'Unknown User'),
+          photoURL: userData.photoURL || null
+        };
+        
         if (fieldName === 'from') {
-          requestData.fromUser = {
-            displayName: userData.displayName,
-            photoURL: userData.photoURL
-          };
+          requestData.fromUser = sanitizedUserData;
         } else {
-          requestData.toUser = {
-            displayName: userData.displayName,
-            photoURL: userData.photoURL
-          };
+          requestData.toUser = sanitizedUserData;
         }
       }
     } catch (error) {
@@ -54,12 +52,15 @@ export const fetchUserDetailsForRequests = async (requests: ChatRequest[], field
 
 export const createChatRequestDocument = async (currentUser: User, toUserId: string) => {
   console.log("Creating chat request document...");
-  return await addDoc(collection(firestore, 'chatRequests'), {
+  
+  const requestData = {
     from: currentUser.uid,
     to: toUserId,
     status: 'pending',
     createdAt: serverTimestamp()
-  });
+  };
+  
+  return await addDoc(collection(firestore, 'chatRequests'), requestData);
 };
 
 export const checkExistingRequests = async (currentUserId: string, toUserId: string) => {

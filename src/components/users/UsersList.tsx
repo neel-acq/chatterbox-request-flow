@@ -6,11 +6,11 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 
 const UsersList: React.FC = () => {
-  const { users, loading, error } = useAllUsers();
+  const { users, loading, error, refetch } = useAllUsers();
   const { sendChatRequest, isSending } = useChatRequests();
   const { currentUser } = useAuth();
 
@@ -53,10 +53,6 @@ const UsersList: React.FC = () => {
     return currentUser?.uid === userId;
   };
 
-  const refreshUsers = () => {
-    window.location.reload();
-  };
-
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center py-8 gap-3">
@@ -69,11 +65,14 @@ const UsersList: React.FC = () => {
   if (error) {
     return (
       <div className="text-center py-4">
-        <p className="text-destructive mb-2">{error}</p>
-        <p className="text-sm text-muted-foreground mb-3">
+        <div className="flex items-center justify-center gap-2 text-destructive mb-2">
+          <AlertCircle className="h-4 w-4" />
+          <p className="text-sm">{error}</p>
+        </div>
+        <p className="text-xs text-muted-foreground mb-3">
           Check your connection and try again
         </p>
-        <Button variant="outline" onClick={refreshUsers} size="sm">
+        <Button variant="outline" onClick={refetch} size="sm">
           <RefreshCw className="h-4 w-4 mr-2" />
           Retry
         </Button>
@@ -85,7 +84,7 @@ const UsersList: React.FC = () => {
     return (
       <div className="text-center py-4">
         <p className="text-muted-foreground mb-2">No users found</p>
-        <Button variant="outline" onClick={refreshUsers} size="sm">
+        <Button variant="outline" onClick={refetch} size="sm">
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
@@ -99,7 +98,7 @@ const UsersList: React.FC = () => {
     <div className="space-y-3 mt-4">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">Users ({users.length})</h3>
-        <Button variant="ghost" size="sm" onClick={refreshUsers}>
+        <Button variant="ghost" size="sm" onClick={refetch}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
@@ -129,7 +128,7 @@ const UsersList: React.FC = () => {
                     </Avatar>
                     <div>
                       <p className="font-medium">
-                        {isSelfChat ? 'Chat with yourself' : (user.displayName || 'Anonymous User')}
+                        {user.displayName || 'Anonymous User'}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         {user.email || 'No email'}
