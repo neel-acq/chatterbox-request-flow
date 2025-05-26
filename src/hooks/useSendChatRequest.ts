@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
-import { checkExistingRequests, createChatRequestDocument } from '@/utils/chatRequestUtils';
+import { checkExistingRequests, createChatRequestDocument, createChatDocument } from '@/utils/chatRequestUtils';
 
 export const useSendChatRequest = () => {
   const { currentUser } = useAuth();
@@ -19,12 +19,30 @@ export const useSendChatRequest = () => {
       return;
     }
 
+    console.log(`Sending chat request from ${currentUser.uid} to ${toUserId}`);
+
+    // Handle self-chat - directly create chat without request
     if (toUserId === currentUser.uid) {
-      toast({
-        variant: "destructive",
-        title: "Invalid request",
-        description: "You cannot send a chat request to yourself",
-      });
+      setIsLoading(true);
+      try {
+        console.log("Creating self-chat...");
+        const chatId = await createChatDocument(currentUser.uid, currentUser.uid);
+        console.log("Self-chat created with ID:", chatId);
+        
+        toast({
+          title: "Chat with yourself created",
+          description: "You can now start chatting with yourself!",
+        });
+      } catch (error) {
+        console.error("Error creating self-chat:", error);
+        toast({
+          variant: "destructive",
+          title: "Failed to create chat",
+          description: "Could not create self-chat. Please try again.",
+        });
+      } finally {
+        setIsLoading(false);
+      }
       return;
     }
 

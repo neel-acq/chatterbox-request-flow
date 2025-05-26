@@ -108,7 +108,6 @@ export const useUserProfile = (userId: string | null) => {
   return { profile, loading, error };
 };
 
-// Update the useAllUsers hook to properly fetch all users and ensure cloneable data
 export const useAllUsers = () => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -118,6 +117,7 @@ export const useAllUsers = () => {
   useEffect(() => {
     const fetchUsers = async () => {
       if (!currentUser) {
+        console.log("No current user, setting empty users list");
         setUsers([]);
         setLoading(false);
         return;
@@ -127,36 +127,62 @@ export const useAllUsers = () => {
       setError(null);
 
       try {
-        console.log("Fetching all users...");
-        const usersRef = collection(firestore, 'users');
-        const q = query(usersRef);
-        const querySnapshot = await getDocs(q);
+        console.log("Fetching all users from Firestore...");
         
-        console.log(`Found ${querySnapshot.size} users in database`);
-        const usersList: UserProfile[] = [];
+        // First, add current user as "Chat with me" option
+        const currentUserProfile: UserProfile = {
+          uid: currentUser.uid,
+          email: currentUser.email || '',
+          displayName: `${currentUser.displayName || 'Me'} (Chat with yourself)`,
+          photoURL: currentUser.photoURL || null,
+          createdAt: null
+        };
+
+        const usersRef = collection(firestore, 'users');
+        const querySnapshot = await getDocs(usersRef);
+        
+        console.log(`Found ${querySnapshot.size} total users in database`);
+        const usersList: UserProfile[] = [currentUserProfile]; // Start with self-chat option
         
         querySnapshot.forEach((doc) => {
-          const userData = doc.data();
-          // Don't include the current user in the list
-          if (doc.id !== currentUser.uid) {
-            // Create a clean, serializable object
-            const sanitizedUser: UserProfile = {
-              uid: doc.id,
-              email: userData.email || '',
-              displayName: userData.displayName || '',
-              photoURL: userData.photoURL || null,
-              createdAt: userData.createdAt || null
-            };
-            usersList.push(sanitizedUser);
-            console.log(`Added user: ${userData.displayName || 'unknown'} (${doc.id})`);
+          try {
+            const userData = doc.data();
+            
+            // Don't include the current user again in the regular list
+            if (doc.id !== currentUser.uid) {
+              const sanitizedUser: UserProfile = {
+                uid: doc.id,
+                email: userData.email || '',
+                displayName: userData.displayName || 'Unknown User',
+                photoURL: userData.photoURL || null,
+                createdAt: userData.createdAt || null
+              };
+              usersList.push(sanitizedUser);
+              console.log(`Added user: ${sanitizedUser.displayName} (${doc.id})`);
+            }
+          } catch (docError) {
+            console.error(`Error processing user document ${doc.id}:`, docError);
           }
         });
         
-        console.log(`Processed ${usersList.length} users, setting in state`);
+        console.log(`Total users to display: ${usersList.length}`);
         setUsers(usersList);
+        setError(null);
       } catch (err) {
         console.error('Error fetching all users:', err);
-        setError('Failed to fetch users');
+        setError('Failed to fetch users. Please check your connection.');
+        
+        // Fallback: at least show self-chat option
+        if (currentUser) {
+          const fallbackUser: UserProfile = {
+            uid: currentUser.uid,
+            email: currentUser.email || '',
+            displayName: `${currentUser.displayName || 'Me'} (Chat with yourself)`,
+            photoURL: currentUser.photoURL || null,
+            createdAt: null
+          };
+          setUsers([fallbackUser]);
+        }
       } finally {
         setLoading(false);
       }

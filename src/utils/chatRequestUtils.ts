@@ -53,6 +53,7 @@ export const fetchUserDetailsForRequests = async (requests: ChatRequest[], field
 };
 
 export const createChatRequestDocument = async (currentUser: User, toUserId: string) => {
+  console.log("Creating chat request document...");
   return await addDoc(collection(firestore, 'chatRequests'), {
     from: currentUser.uid,
     to: toUserId,
@@ -62,6 +63,8 @@ export const createChatRequestDocument = async (currentUser: User, toUserId: str
 };
 
 export const checkExistingRequests = async (currentUserId: string, toUserId: string) => {
+  console.log(`Checking existing requests between ${currentUserId} and ${toUserId}`);
+  
   const existingRequestQuery = query(
     collection(firestore, 'chatRequests'),
     where('from', '==', currentUserId),
@@ -86,14 +89,21 @@ export const checkExistingRequests = async (currentUserId: string, toUserId: str
 };
 
 export const createChatDocument = async (userId1: string, userId2: string) => {
-  const chatId = [userId1, userId2].sort().join('_');
+  // For self-chat, use the same user ID twice but create a unique chat ID
+  const chatId = userId1 === userId2 ? `self_${userId1}` : [userId1, userId2].sort().join('_');
   
-  await setDoc(doc(firestore, 'chats', chatId), {
-    participants: [userId1, userId2],
+  console.log("Creating chat document with ID:", chatId);
+  
+  const chatData = {
+    participants: userId1 === userId2 ? [userId1] : [userId1, userId2],
     createdAt: serverTimestamp(),
     lastMessage: null,
-    lastMessageTimestamp: null
-  });
+    lastMessageTimestamp: null,
+    isSelfChat: userId1 === userId2
+  };
   
+  await setDoc(doc(firestore, 'chats', chatId), chatData);
+  
+  console.log("Chat document created successfully");
   return chatId;
 };

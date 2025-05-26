@@ -7,26 +7,35 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { motion } from 'framer-motion';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
 const UsersList: React.FC = () => {
   const { users, loading, error } = useAllUsers();
   const { sendChatRequest, isSending } = useChatRequests();
+  const { currentUser } = useAuth();
 
   useEffect(() => {
     console.log("UsersList component rendered with:", {
       usersCount: users?.length || 0,
       loading,
-      hasError: !!error
+      hasError: !!error,
+      currentUser: currentUser?.uid
     });
-  }, [users, loading, error]);
+  }, [users, loading, error, currentUser]);
 
-  const handleSendRequest = (userId: string) => {
-    if (userId) {
-      try {
-        sendChatRequest(userId);
-      } catch (error) {
-        console.error("Error sending chat request:", error);
-      }
+  const handleSendRequest = async (userId: string) => {
+    console.log("Attempting to send chat request to:", userId);
+    
+    if (!userId) {
+      console.error("No user ID provided");
+      return;
+    }
+
+    try {
+      await sendChatRequest(userId);
+      console.log("Chat request sent successfully");
+    } catch (error) {
+      console.error("Error sending chat request:", error);
     }
   };
 
@@ -38,6 +47,10 @@ const UsersList: React.FC = () => {
       .join('')
       .toUpperCase()
       .substring(0, 2);
+  };
+
+  const isCurrentUser = (userId: string) => {
+    return currentUser?.uid === userId;
   };
 
   if (loading) {
@@ -52,6 +65,9 @@ const UsersList: React.FC = () => {
     return (
       <div className="text-center py-4 text-destructive">
         <p>{error}</p>
+        <p className="text-sm text-muted-foreground mt-2">
+          Check your internet connection and try again
+        </p>
       </div>
     );
   }
@@ -59,7 +75,8 @@ const UsersList: React.FC = () => {
   if (!users || users.length === 0) {
     return (
       <div className="text-center py-4 text-muted-foreground">
-        No other users found
+        <p>No users found</p>
+        <p className="text-sm mt-1">Try refreshing the page</p>
       </div>
     );
   }
@@ -71,7 +88,7 @@ const UsersList: React.FC = () => {
       <h3 className="text-sm font-medium">All Users ({users.length})</h3>
       {users.map((user) => (
         <motion.div
-          key={user.uid}
+          key={`user-${user.uid}`}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
@@ -92,9 +109,10 @@ const UsersList: React.FC = () => {
                 <Button 
                   onClick={() => handleSendRequest(user.uid)}
                   disabled={isSending}
+                  variant={isCurrentUser(user.uid) ? "secondary" : "default"}
                 >
                   {isSending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Chat
+                  {isCurrentUser(user.uid) ? "Chat with Me" : "Chat"}
                 </Button>
               </div>
             </CardContent>
