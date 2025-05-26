@@ -28,16 +28,21 @@ export const useUserByEmail = (email: string) => {
       setError(null);
 
       try {
+        console.log("Searching for user with email:", email);
         const q = query(collection(firestore, 'users'), where('email', '==', email));
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
+          console.log("No user found with email:", email);
           setUser(null);
           setError('No user found with that email');
         } else {
-          const userData = querySnapshot.docs[0].data();
+          const userDoc = querySnapshot.docs[0];
+          const userData = userDoc.data();
+          console.log("Found user data:", userData);
+          
           const sanitizedUser: UserProfile = {
-            uid: querySnapshot.docs[0].id,
+            uid: userDoc.id,
             email: userData.email || '',
             displayName: userData.displayName || '',
             photoURL: userData.photoURL || null,
@@ -76,11 +81,14 @@ export const useUserProfile = (userId: string | null) => {
       setError(null);
 
       try {
+        console.log("Fetching profile for user:", userId);
         const userDocRef = doc(firestore, 'users', userId);
         const userDoc = await getDoc(userDocRef);
 
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          console.log("Profile data:", userData);
+          
           const sanitizedProfile: UserProfile = {
             uid: userId,
             email: userData.email || '',
@@ -90,6 +98,7 @@ export const useUserProfile = (userId: string | null) => {
           };
           setProfile(sanitizedProfile);
         } else {
+          console.log("Profile not found for user:", userId);
           setProfile(null);
           setError('User profile not found');
         }
@@ -116,8 +125,10 @@ export const useAllUsers = () => {
 
   useEffect(() => {
     const fetchUsers = async () => {
+      console.log("Starting to fetch all users...");
+      
       if (!currentUser) {
-        console.log("No current user, setting empty users list");
+        console.log("No current user, cannot fetch users");
         setUsers([]);
         setLoading(false);
         return;
@@ -127,57 +138,66 @@ export const useAllUsers = () => {
       setError(null);
 
       try {
-        console.log("Fetching all users from Firestore...");
+        console.log("Current user:", currentUser.uid);
         
-        // First, add current user as "Chat with me" option
-        const currentUserProfile: UserProfile = {
+        // Create self-chat option
+        const selfChatUser: UserProfile = {
           uid: currentUser.uid,
           email: currentUser.email || '',
-          displayName: `${currentUser.displayName || 'Me'} (Chat with yourself)`,
+          displayName: 'Chat with yourself',
           photoURL: currentUser.photoURL || null,
           createdAt: null
         };
 
+        console.log("Querying Firestore for users...");
         const usersRef = collection(firestore, 'users');
         const querySnapshot = await getDocs(usersRef);
         
-        console.log(`Found ${querySnapshot.size} total users in database`);
-        const usersList: UserProfile[] = [currentUserProfile]; // Start with self-chat option
+        console.log(`Found ${querySnapshot.size} users in database`);
         
-        querySnapshot.forEach((doc) => {
-          try {
-            const userData = doc.data();
-            
-            // Don't include the current user again in the regular list
-            if (doc.id !== currentUser.uid) {
-              const sanitizedUser: UserProfile = {
-                uid: doc.id,
-                email: userData.email || '',
-                displayName: userData.displayName || 'Unknown User',
-                photoURL: userData.photoURL || null,
-                createdAt: userData.createdAt || null
-              };
-              usersList.push(sanitizedUser);
-              console.log(`Added user: ${sanitizedUser.displayName} (${doc.id})`);
+        if (querySnapshot.empty) {
+          console.log("No users found in database, showing only self-chat");
+          setUsers([selfChatUser]);
+        } else {
+          const usersList: UserProfile[] = [selfChatUser];
+          
+          querySnapshot.forEach((userDoc) => {
+            try {
+              const userData = userDoc.data();
+              console.log(`Processing user ${userDoc.id}:`, userData);
+              
+              // Skip current user in the regular list since we have self-chat
+              if (userDoc.id !== currentUser.uid) {
+                const sanitizedUser: UserProfile = {
+                  uid: userDoc.id,
+                  email: userData.email || '',
+                  displayName: userData.displayName || 'Unknown User',
+                  photoURL: userData.photoURL || null,
+                  createdAt: userData.createdAt || null
+                };
+                usersList.push(sanitizedUser);
+                console.log(`Added user: ${sanitizedUser.displayName}`);
+              }
+            } catch (docError) {
+              console.error(`Error processing user document ${userDoc.id}:`, docError);
             }
-          } catch (docError) {
-            console.error(`Error processing user document ${doc.id}:`, docError);
-          }
-        });
+          });
+          
+          console.log(`Total users to display: ${usersList.length}`);
+          setUsers(usersList);
+        }
         
-        console.log(`Total users to display: ${usersList.length}`);
-        setUsers(usersList);
         setError(null);
       } catch (err) {
-        console.error('Error fetching all users:', err);
+        console.error('Error fetching users:', err);
         setError('Failed to fetch users. Please check your connection.');
         
-        // Fallback: at least show self-chat option
+        // Fallback: show at least self-chat
         if (currentUser) {
           const fallbackUser: UserProfile = {
             uid: currentUser.uid,
             email: currentUser.email || '',
-            displayName: `${currentUser.displayName || 'Me'} (Chat with yourself)`,
+            displayName: 'Chat with yourself',
             photoURL: currentUser.photoURL || null,
             createdAt: null
           };

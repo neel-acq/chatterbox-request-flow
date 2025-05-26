@@ -7,7 +7,6 @@ import { firestore } from '../lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatRequest } from '@/types/chatRequest';
 
-// Re-export the ChatRequest type
 export type { ChatRequest };
 
 export const useChatRequests = () => {
@@ -20,17 +19,19 @@ export const useChatRequests = () => {
 
   useEffect(() => {
     if (!currentUser) {
+      console.log("No current user, clearing requests");
       setIncomingRequests([]);
       setSentRequests([]);
       setLoading(false);
       return;
     }
 
+    console.log("Setting up chat request listeners for user:", currentUser.uid);
     let unsubscribeIncoming: (() => void) | undefined;
     let unsubscribeSent: (() => void) | undefined;
 
     try {
-      // Get incoming requests
+      // Incoming requests listener
       const incomingRef = collection(firestore, 'chatRequests');
       const incomingQ = query(
         incomingRef,
@@ -38,7 +39,39 @@ export const useChatRequests = () => {
         orderBy('createdAt', 'desc')
       );
 
-      // Get sent requests
+      unsubscribeIncoming = onSnapshot(incomingQ, (snapshot) => {
+        console.log(`Received ${snapshot.size} incoming requests`);
+        try {
+          const requests: ChatRequest[] = [];
+          
+          snapshot.forEach((doc) => {
+            const requestData = doc.data();
+            console.log("Processing incoming request:", doc.id, requestData);
+            
+            const sanitizedData: ChatRequest = {
+              id: doc.id,
+              from: String(requestData.from || ''),
+              to: String(requestData.to || ''),
+              status: (requestData.status as 'pending' | 'accepted' | 'declined') || 'pending',
+              createdAt: requestData.createdAt,
+              fromUser: requestData.fromUser ? {
+                displayName: String(requestData.fromUser.displayName || ''),
+                photoURL: requestData.fromUser.photoURL || null
+              } : null
+            };
+            requests.push(sanitizedData);
+          });
+          
+          setIncomingRequests(requests);
+          console.log("Updated incoming requests:", requests.length);
+        } catch (error) {
+          console.error("Error processing incoming requests:", error);
+        }
+      }, (error) => {
+        console.error("Error in incoming requests listener:", error);
+      });
+
+      // Sent requests listener
       const sentRef = collection(firestore, 'chatRequests');
       const sentQ = query(
         sentRef,
@@ -46,92 +79,45 @@ export const useChatRequests = () => {
         orderBy('createdAt', 'desc')
       );
 
-      unsubscribeIncoming = onSnapshot(incomingQ, async (snapshot) => {
+      unsubscribeSent = onSnapshot(sentQ, (snapshot) => {
+        console.log(`Received ${snapshot.size} sent requests`);
         try {
           const requests: ChatRequest[] = [];
           
-          for (const doc of snapshot.docs) {
+          snapshot.forEach((doc) => {
             const requestData = doc.data();
-            // Clone and sanitize data for serialization
+            console.log("Processing sent request:", doc.id, requestData);
+            
             const sanitizedData: ChatRequest = {
               id: doc.id,
-              from: requestData.from || '',
-              to: requestData.to || '',
-              status: (requestData.status as 'pending' | 'accepted' | 'declined') || 'pending',
-              createdAt: requestData.createdAt,
-              fromUser: requestData.fromUser ? {
-                displayName: requestData.fromUser.displayName || '',
-                photoURL: requestData.fromUser.photoURL || null
-                // Remove the uid property as it's not in the type definition
-              } : null
-            };
-            requests.push(sanitizedData);
-          }
-          
-          setIncomingRequests(requests);
-          if (sentRequests.length > 0 || snapshot.size > 0) {
-            setLoading(false);
-          }
-        } catch (error) {
-          console.error("Error processing incoming requests:", error);
-        }
-      }, (error) => {
-        console.error("Error in incoming requests listener:", error);
-        setLoading(false);
-      });
-
-      unsubscribeSent = onSnapshot(sentQ, async (snapshot) => {
-        try {
-          const requests: ChatRequest[] = [];
-          
-          for (const doc of snapshot.docs) {
-            const requestData = doc.data();
-            // Clone and sanitize data for serialization
-            const sanitizedData: ChatRequest = {
-              id: doc.id,
-              from: requestData.from || '',
-              to: requestData.to || '',
+              from: String(requestData.from || ''),
+              to: String(requestData.to || ''),
               status: (requestData.status as 'pending' | 'accepted' | 'declined') || 'pending',
               createdAt: requestData.createdAt,
               toUser: requestData.toUser ? {
-                displayName: requestData.toUser.displayName || '',
+                displayName: String(requestData.toUser.displayName || ''),
                 photoURL: requestData.toUser.photoURL || null
-                // Remove the uid property as it's not in the type definition
               } : null
             };
             requests.push(sanitizedData);
-          }
+          });
           
           setSentRequests(requests);
-          if (incomingRequests.length > 0 || snapshot.size > 0) {
-            setLoading(false);
-          }
+          console.log("Updated sent requests:", requests.length);
         } catch (error) {
           console.error("Error processing sent requests:", error);
         }
       }, (error) => {
         console.error("Error in sent requests listener:", error);
-        setLoading(false);
       });
 
-      // Make sure loading is set to false even if no requests are found
-      const checkIfEmpty = async () => {
-        try {
-          const incomingSnapshot = await getDocs(incomingQ);
-          const sentSnapshot = await getDocs(sentQ);
-          
-          if (incomingSnapshot.empty && sentSnapshot.empty) {
-            setLoading(false);
-          }
-        } catch (error) {
-          console.error("Error checking for empty requests:", error);
-          setLoading(false);
-        }
-      };
-
-      checkIfEmpty();
+      // Set loading to false after a short delay to allow initial data to load
+      setTimeout(() => {
+        setLoading(false);
+      }, 2000);
 
       return () => {
+        console.log("Cleaning up chat request listeners");
         if (unsubscribeIncoming) unsubscribeIncoming();
         if (unsubscribeSent) unsubscribeSent();
       };
