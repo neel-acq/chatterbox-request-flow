@@ -15,6 +15,10 @@ export interface Message {
   text: string;
   sender: string;
   createdAt: Timestamp;
+  type?: 'text' | 'image';
+  imageUrl?: string;
+  edited?: boolean;
+  editedAt?: any;
 }
 
 export interface Chat {
@@ -147,7 +151,8 @@ export const useChats = () => {
       await addDoc(messagesRef, {
         text,
         sender: currentUser.uid,
-        createdAt: Timestamp.now()
+        createdAt: Timestamp.now(),
+        type: 'text'
       });
       
       // Update last message in chat
@@ -260,7 +265,11 @@ export const useChat = (chatId: string | null) => {
               id: doc.id,
               text: msgData.text || '',
               sender: msgData.sender || '',
-              createdAt: msgData.createdAt
+              createdAt: msgData.createdAt,
+              type: msgData.type || 'text',
+              imageUrl: msgData.imageUrl,
+              edited: msgData.edited,
+              editedAt: msgData.editedAt
             });
           });
           
@@ -302,7 +311,8 @@ export const useChat = (chatId: string | null) => {
       await addDoc(messagesRef, {
         text,
         sender: currentUser.uid,
-        createdAt: Timestamp.now()
+        createdAt: Timestamp.now(),
+        type: 'text'
       });
       
       // Update last message in chat

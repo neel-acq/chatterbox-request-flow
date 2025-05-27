@@ -1,12 +1,12 @@
-
 import { useSendChatRequest } from './useSendChatRequest';
 import { useRespondToChatRequest } from './useRespondToChatRequest';
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, deleteDoc, doc } from 'firebase/firestore';
 import { firestore } from '../lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatRequest } from '@/types/chatRequest';
 import { fetchUserDetailsForRequests } from '@/utils/chatRequestUtils';
+import { useToast } from '@/hooks/use-toast';
 
 export type { ChatRequest };
 
@@ -30,12 +30,30 @@ const sanitizeChatRequest = (data: any, docId: string): ChatRequest => {
 
 export const useChatRequests = () => {
   const { currentUser } = useAuth();
+  const { toast } = useToast();
   const [incomingRequests, setIncomingRequests] = useState<ChatRequest[]>([]);
   const [sentRequests, setSentRequests] = useState<ChatRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { sendChatRequest, isLoading: isSending } = useSendChatRequest();
   const { respondToChatRequest, isLoading: isResponding } = useRespondToChatRequest();
+
+  const cancelChatRequest = async (requestId: string) => {
+    try {
+      await deleteDoc(doc(firestore, 'chatRequests', requestId));
+      toast({
+        title: "Request cancelled",
+        description: "Your chat request has been cancelled",
+      });
+    } catch (error) {
+      console.error("Error cancelling chat request:", error);
+      toast({
+        variant: "destructive",
+        title: "Failed to cancel request",
+        description: "Please try again",
+      });
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -175,6 +193,7 @@ export const useChatRequests = () => {
     error,
     sendChatRequest,
     respondToChatRequest,
+    cancelChatRequest,
     isResponding,
     isSending
   };

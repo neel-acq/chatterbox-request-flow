@@ -3,6 +3,9 @@ import React from 'react';
 import { useChat } from '@/hooks/useChats';
 import ChatMessages from './ChatMessages';
 import ChatInput from './ChatInput';
+import { collection, addDoc, Timestamp, updateDoc, doc } from 'firebase/firestore';
+import { firestore } from '@/lib/firebase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ChatViewProps {
   chatId: string | null;
@@ -10,6 +13,33 @@ interface ChatViewProps {
 
 const ChatView: React.FC<ChatViewProps> = ({ chatId }) => {
   const { chat, messages, loading, sendMessage } = useChat(chatId);
+  const { currentUser } = useAuth();
+
+  const handleSendImage = async (imageUrl: string, caption?: string) => {
+    if (!currentUser || !chatId) return;
+    
+    try {
+      const messagesRef = collection(firestore, `chats/${chatId}/messages`);
+      const chatRef = doc(firestore, 'chats', chatId);
+      
+      // Add new image message
+      await addDoc(messagesRef, {
+        type: 'image',
+        imageUrl,
+        text: caption || '',
+        sender: currentUser.uid,
+        createdAt: Timestamp.now()
+      });
+      
+      // Update last message in chat
+      await updateDoc(chatRef, {
+        lastMessage: caption ? `📷 ${caption}` : '📷 Image',
+        lastMessageAt: Timestamp.now()
+      });
+    } catch (error) {
+      console.error("Error sending image:", error);
+    }
+  };
 
   if (!chatId) {
     return (
@@ -54,6 +84,8 @@ const ChatView: React.FC<ChatViewProps> = ({ chatId }) => {
           messages={messages} 
           otherUserName={chat.otherUser?.displayName} 
           otherUserAvatar={chat.otherUser?.photoURL}
+          chatId={chatId}
+          onSendImage={handleSendImage}
         />
         <ChatInput onSendMessage={sendMessage} />
       </div>
