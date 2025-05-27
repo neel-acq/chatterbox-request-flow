@@ -1,7 +1,6 @@
-
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc, addDoc, Timestamp, DocumentData, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, getDoc, addDoc, Timestamp, DocumentData, updateDoc } from 'firebase/firestore';
 import { firestore } from '@/lib/firebase';
 
 export interface UserData {
@@ -16,6 +15,10 @@ export interface Message {
   text: string;
   sender: string;
   createdAt: Timestamp;
+  type?: 'text' | 'image';
+  imageUrl?: string;
+  edited?: boolean;
+  editedAt?: any;
 }
 
 export interface Chat {
@@ -24,6 +27,7 @@ export interface Chat {
   lastMessage: string | null;
   lastMessageAt: Timestamp | null;
   createdAt: Timestamp;
+  isSelfChat?: boolean;
   otherUser?: UserData | null;
 }
 
@@ -39,42 +43,59 @@ export const useChats = () => {
       return;
     }
 
+    console.log("Setting up chats listener for user:", currentUser.uid);
+
     // Query chats where currentUser is a participant
     const chatsRef = collection(firestore, 'chats');
     const q = query(
       chatsRef,
-      where('participants', 'array-contains', currentUser.uid),
-      orderBy('lastMessageAt', 'desc')
+      where('participants', 'array-contains', currentUser.uid)
     );
 
     try {
       const unsubscribe = onSnapshot(q, async (snapshot) => {
         try {
+          console.log(`Found ${snapshot.size} chats for user`);
           const chatsList: Chat[] = [];
           
           for (const chatDoc of snapshot.docs) {
             const chatData = chatDoc.data() as Chat;
+            console.log("Processing chat:", chatDoc.id, chatData);
             
-            // Find the other user in the chat
-            const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+            // Check if it's a self-chat
+            const isSelfChat = chatData.isSelfChat || chatData.participants.length === 1;
+            
             let otherUserData = null;
             
-            if (otherUserId) {
-              try {
-                const otherUserRef = doc(firestore, 'users', otherUserId);
-                const otherUserSnap = await getDoc(otherUserRef);
-                
-                if (otherUserSnap.exists()) {
-                  const userData = otherUserSnap.data() as DocumentData;
-                  otherUserData = {
-                    uid: otherUserId,
-                    displayName: userData.displayName || null,
-                    email: userData.email || null,
-                    photoURL: userData.photoURL || null
-                  };
+            if (isSelfChat) {
+              // For self-chat, use current user data
+              otherUserData = {
+                uid: currentUser.uid,
+                displayName: "Me",
+                email: currentUser.email,
+                photoURL: currentUser.photoURL
+              };
+            } else {
+              // Find the other user in the chat
+              const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+              
+              if (otherUserId) {
+                try {
+                  const otherUserRef = doc(firestore, 'users', otherUserId);
+                  const otherUserSnap = await getDoc(otherUserRef);
+                  
+                  if (otherUserSnap.exists()) {
+                    const userData = otherUserSnap.data() as DocumentData;
+                    otherUserData = {
+                      uid: otherUserId,
+                      displayName: userData.displayName || null,
+                      email: userData.email || null,
+                      photoURL: userData.photoURL || null
+                    };
+                  }
+                } catch (error) {
+                  console.error(`Error fetching other user data: ${otherUserId}`, error);
                 }
-              } catch (error) {
-                console.error(`Error fetching other user data: ${otherUserId}`, error);
               }
             }
             
@@ -85,14 +106,24 @@ export const useChats = () => {
               lastMessage: chatData.lastMessage,
               lastMessageAt: chatData.lastMessageAt,
               createdAt: chatData.createdAt,
+              isSelfChat,
               otherUser: otherUserData
             };
             
             chatsList.push(safeChat);
           }
           
+          // Sort by lastMessageAt (most recent first)
+          chatsList.sort((a, b) => {
+            if (!a.lastMessageAt && !b.lastMessageAt) return 0;
+            if (!a.lastMessageAt) return 1;
+            if (!b.lastMessageAt) return -1;
+            return b.lastMessageAt.toMillis() - a.lastMessageAt.toMillis();
+          });
+          
           setChats(chatsList);
           setLoading(false);
+          console.log("Updated chats list:", chatsList.length);
         } catch (error) {
           console.error("Error processing chat data:", error);
           setLoading(false);
@@ -120,7 +151,8 @@ export const useChats = () => {
       await addDoc(messagesRef, {
         text,
         sender: currentUser.uid,
-        createdAt: Timestamp.now()
+        createdAt: Timestamp.now(),
+        type: 'text'
       });
       
       // Update last message in chat
@@ -169,25 +201,37 @@ export const useChat = (chatId: string | null) => {
           }
 
           const chatData = chatDoc.data() as Omit<Chat, 'id'>;
-          const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+          const isSelfChat = chatData.isSelfChat || chatData.participants.length === 1;
+          
           let otherUserData = null;
           
-          if (otherUserId) {
-            try {
-              const otherUserRef = doc(firestore, 'users', otherUserId);
-              const otherUserSnap = await getDoc(otherUserRef);
-              
-              if (otherUserSnap.exists()) {
-                const userData = otherUserSnap.data() as DocumentData;
-                otherUserData = {
-                  uid: otherUserId,
-                  displayName: userData.displayName || null,
-                  email: userData.email || null,
-                  photoURL: userData.photoURL || null
-                };
+          if (isSelfChat) {
+            otherUserData = {
+              uid: currentUser.uid,
+              displayName: "Me",
+              email: currentUser.email,
+              photoURL: currentUser.photoURL
+            };
+          } else {
+            const otherUserId = chatData.participants.find(id => id !== currentUser.uid);
+            
+            if (otherUserId) {
+              try {
+                const otherUserRef = doc(firestore, 'users', otherUserId);
+                const otherUserSnap = await getDoc(otherUserRef);
+                
+                if (otherUserSnap.exists()) {
+                  const userData = otherUserSnap.data() as DocumentData;
+                  otherUserData = {
+                    uid: otherUserId,
+                    displayName: userData.displayName || null,
+                    email: userData.email || null,
+                    photoURL: userData.photoURL || null
+                  };
+                }
+              } catch (error) {
+                console.error("Error fetching other user data:", error);
               }
-            } catch (error) {
-              console.error("Error fetching other user data:", error);
             }
           }
           
@@ -198,6 +242,7 @@ export const useChat = (chatId: string | null) => {
             lastMessage: chatData.lastMessage,
             lastMessageAt: chatData.lastMessageAt,
             createdAt: chatData.createdAt,
+            isSelfChat,
             otherUser: otherUserData
           });
         } catch (error) {
@@ -209,9 +254,8 @@ export const useChat = (chatId: string | null) => {
 
       // Get messages
       const messagesRef = collection(firestore, `chats/${chatId}/messages`);
-      const messagesQuery = query(messagesRef, orderBy('createdAt', 'asc'));
       
-      unsubMessages = onSnapshot(messagesQuery, (snapshot) => {
+      unsubMessages = onSnapshot(messagesRef, (snapshot) => {
         try {
           const messagesList: Message[] = [];
           
@@ -221,8 +265,18 @@ export const useChat = (chatId: string | null) => {
               id: doc.id,
               text: msgData.text || '',
               sender: msgData.sender || '',
-              createdAt: msgData.createdAt
+              createdAt: msgData.createdAt,
+              type: msgData.type || 'text',
+              imageUrl: msgData.imageUrl,
+              edited: msgData.edited,
+              editedAt: msgData.editedAt
             });
+          });
+          
+          // Sort messages by createdAt
+          messagesList.sort((a, b) => {
+            if (!a.createdAt || !b.createdAt) return 0;
+            return a.createdAt.toMillis() - b.createdAt.toMillis();
           });
           
           setMessages(messagesList);
@@ -257,7 +311,8 @@ export const useChat = (chatId: string | null) => {
       await addDoc(messagesRef, {
         text,
         sender: currentUser.uid,
-        createdAt: Timestamp.now()
+        createdAt: Timestamp.now(),
+        type: 'text'
       });
       
       // Update last message in chat
