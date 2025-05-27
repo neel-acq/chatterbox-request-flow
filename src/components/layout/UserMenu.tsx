@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ProfileUpdateModal } from '@/components/profile/ProfileUpdateModal';
 import { ChangePasswordModal } from '@/components/profile/ChangePasswordModal';
+import { SettingsModal } from '@/components/settings/SettingsModal';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { User, Settings, Lock, LogOut } from 'lucide-react';
@@ -68,6 +69,13 @@ const UserMenu: React.FC = () => {
               Change Password
             </DropdownMenuItem>
           </ChangePasswordModal>
+
+          <SettingsModal>
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </DropdownMenuItem>
+          </SettingsModal>
           
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={logout} className="cursor-pointer">
