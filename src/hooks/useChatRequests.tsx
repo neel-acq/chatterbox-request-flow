@@ -2,10 +2,11 @@
 import { useSendChatRequest } from './useSendChatRequest';
 import { useRespondToChatRequest } from './useRespondToChatRequest';
 import { useState, useEffect } from 'react';
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot } from 'firebase/firestore';
 import { firestore } from '../lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { ChatRequest } from '@/types/chatRequest';
+import { fetchUserDetailsForRequests } from '@/utils/chatRequestUtils';
 
 export type { ChatRequest };
 
@@ -53,17 +54,16 @@ export const useChatRequests = () => {
     let unsubscribeSent: (() => void) | undefined;
 
     try {
-      // Incoming requests listener
+      // Incoming requests listener - removed orderBy to avoid index requirement
       const incomingRef = collection(firestore, 'chatRequests');
       const incomingQ = query(
         incomingRef,
-        where('to', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
+        where('to', '==', currentUser.uid)
       );
 
       unsubscribeIncoming = onSnapshot(
         incomingQ,
-        (snapshot) => {
+        async (snapshot) => {
           console.log(`Received ${snapshot.size} incoming requests`);
           try {
             const requests: ChatRequest[] = [];
@@ -71,7 +71,7 @@ export const useChatRequests = () => {
             snapshot.forEach((doc) => {
               try {
                 const requestData = doc.data();
-                console.log("Processing incoming request:", doc.id);
+                console.log("Processing incoming request:", doc.id, requestData);
                 
                 const sanitizedData = sanitizeChatRequest(requestData, doc.id);
                 requests.push(sanitizedData);
@@ -80,8 +80,17 @@ export const useChatRequests = () => {
               }
             });
             
-            setIncomingRequests(requests);
-            console.log("Updated incoming requests:", requests.length);
+            // Sort by createdAt in memory (newest first)
+            requests.sort((a, b) => {
+              if (!a.createdAt || !b.createdAt) return 0;
+              return b.createdAt.toMillis() - a.createdAt.toMillis();
+            });
+
+            // Fetch user details for the from users
+            const requestsWithUserData = await fetchUserDetailsForRequests(requests, 'from');
+            
+            setIncomingRequests(requestsWithUserData);
+            console.log("Updated incoming requests:", requestsWithUserData.length);
           } catch (error) {
             console.error("Error processing incoming requests:", error);
             setError("Failed to load incoming requests");
@@ -93,17 +102,16 @@ export const useChatRequests = () => {
         }
       );
 
-      // Sent requests listener
+      // Sent requests listener - removed orderBy to avoid index requirement
       const sentRef = collection(firestore, 'chatRequests');
       const sentQ = query(
         sentRef,
-        where('from', '==', currentUser.uid),
-        orderBy('createdAt', 'desc')
+        where('from', '==', currentUser.uid)
       );
 
       unsubscribeSent = onSnapshot(
         sentQ,
-        (snapshot) => {
+        async (snapshot) => {
           console.log(`Received ${snapshot.size} sent requests`);
           try {
             const requests: ChatRequest[] = [];
@@ -111,7 +119,7 @@ export const useChatRequests = () => {
             snapshot.forEach((doc) => {
               try {
                 const requestData = doc.data();
-                console.log("Processing sent request:", doc.id);
+                console.log("Processing sent request:", doc.id, requestData);
                 
                 const sanitizedData = sanitizeChatRequest(requestData, doc.id);
                 requests.push(sanitizedData);
@@ -120,8 +128,17 @@ export const useChatRequests = () => {
               }
             });
             
-            setSentRequests(requests);
-            console.log("Updated sent requests:", requests.length);
+            // Sort by createdAt in memory (newest first)
+            requests.sort((a, b) => {
+              if (!a.createdAt || !b.createdAt) return 0;
+              return b.createdAt.toMillis() - a.createdAt.toMillis();
+            });
+
+            // Fetch user details for the to users
+            const requestsWithUserData = await fetchUserDetailsForRequests(requests, 'to');
+            
+            setSentRequests(requestsWithUserData);
+            console.log("Updated sent requests:", requestsWithUserData.length);
           } catch (error) {
             console.error("Error processing sent requests:", error);
             setError("Failed to load sent requests");
@@ -136,7 +153,7 @@ export const useChatRequests = () => {
       // Set loading to false after initial setup
       setTimeout(() => {
         setLoading(false);
-      }, 1000);
+      }, 2000);
 
     } catch (error) {
       console.error("Error setting up request listeners:", error);
