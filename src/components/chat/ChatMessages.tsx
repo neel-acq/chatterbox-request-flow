@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { AnimatePresence, motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { Pin, MessageSquareEdit } from 'lucide-react';
+import { Pin, Edit3 } from 'lucide-react';
 import { MessageEditor } from './MessageEditor';
 import { usePinnedMessages } from '@/hooks/usePinnedMessages';
 import { ImageShare } from './ImageShare';
@@ -162,7 +162,7 @@ const ChatMessages: React.FC<ChatMessagesProps> = ({
                               className="h-6 w-6 p-0"
                               onClick={() => setEditingMessageId(message.id)}
                             >
-                              <MessageSquareEdit className="h-3 w-3" />
+                              <Edit3 className="h-3 w-3" />
                             </Button>
                           )}
                           {!isPinned(message.id) && (

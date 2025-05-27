@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
-import { collection, query, where, onSnapshot, doc, updateDoc, Timestamp } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, Timestamp, orderBy } from 'firebase/firestore';
 import { firestore } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 
@@ -35,6 +35,7 @@ export const useNotifications = () => {
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [lastNotificationCount, setLastNotificationCount] = useState(0);
   const { currentUser } = useAuth();
   const { toast } = useToast();
 
@@ -44,17 +45,24 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return;
     }
 
+    console.log("Setting up notifications listener for user:", currentUser.uid);
+
     const notificationsRef = collection(firestore, 'notifications');
     const q = query(
       notificationsRef,
-      where('userId', '==', currentUser.uid)
+      where('userId', '==', currentUser.uid),
+      orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log("Notifications snapshot received:", snapshot.size, "notifications");
+      
       const notificationsList: Notification[] = [];
       
       snapshot.forEach((doc) => {
         const data = doc.data();
+        console.log("Processing notification:", doc.id, data);
+        
         notificationsList.push({
           id: doc.id,
           type: data.type,
@@ -67,16 +75,14 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         });
       });
 
-      // Sort by createdAt (newest first)
-      notificationsList.sort((a, b) => {
-        if (!a.createdAt || !b.createdAt) return 0;
-        return b.createdAt.toMillis() - a.createdAt.toMillis();
-      });
+      console.log("Total notifications processed:", notificationsList.length);
 
-      // Show toast for new unread notifications
+      // Show toast for new unread notifications (only after initial load)
       const newUnreadNotifications = notificationsList.filter(n => !n.read);
-      if (newUnreadNotifications.length > 0 && notifications.length > 0) {
+      if (newUnreadNotifications.length > lastNotificationCount && lastNotificationCount > 0) {
         const latestNotification = newUnreadNotifications[0];
+        console.log("Showing toast for new notification:", latestNotification);
+        
         toast({
           title: latestNotification.title,
           description: latestNotification.message,
@@ -84,6 +90,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
 
       setNotifications(notificationsList);
+      setLastNotificationCount(newUnreadNotifications.length);
+    }, (error) => {
+      console.error("Error in notifications listener:", error);
     });
 
     return () => unsubscribe();
@@ -91,6 +100,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const markAsRead = async (notificationId: string) => {
     try {
+      console.log("Marking notification as read:", notificationId);
       const notificationRef = doc(firestore, 'notifications', notificationId);
       await updateDoc(notificationRef, { read: true });
     } catch (error) {
@@ -100,6 +110,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const markAllAsRead = async () => {
     try {
+      console.log("Marking all notifications as read");
       const unreadNotifications = notifications.filter(n => !n.read);
       const promises = unreadNotifications.map(notification => 
         updateDoc(doc(firestore, 'notifications', notification.id), { read: true })
