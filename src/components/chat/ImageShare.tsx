@@ -11,7 +11,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
-import { Image } from 'lucide-react';
+import { Image as ImageIcon } from 'lucide-react';
 
 interface ImageShareProps {
   onSendImage: (imageUrl: string, caption?: string) => void;
@@ -72,7 +72,7 @@ export const ImageShare: React.FC<ImageShareProps> = ({ onSendImage }) => {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="ghost" size="icon">
-          <Image className="h-4 w-4" />
+          <ImageIcon className="h-4 w-4" />
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
